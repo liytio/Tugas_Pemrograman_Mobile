@@ -1,0 +1,159 @@
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+
+class TheaterSelectionScreen extends StatefulWidget {
+  const TheaterSelectionScreen({super.key});
+
+  @override
+  _TheaterSelectionScreenState createState() => _TheaterSelectionScreenState();
+}
+
+class _TheaterSelectionScreenState extends State<TheaterSelectionScreen> {
+  String _currentCity = 'Memuat...';
+  bool _isLoadingLocation = true;
+  final List<String> _cinemaList = ['XI CINEMA', 'PONDOK KELAPA 21', 'CGV', 'CINEPOLIS', 'CP MALL', 'HERMES'];
+
+  @override
+  void initState() {
+    super.initState();
+    _determinePosition(); // Panggil fungsi lokasi saat layar dimuat
+  }
+
+  // Fungsi untuk mendapatkan lokasi dan kota saat ini
+  Future<void> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    setState(() {
+      _isLoadingLocation = true;
+    });
+
+    // 1. Cek Service Lokasi
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      setState(() {
+        _currentCity = 'Layanan lokasi dinonaktifkan.';
+        _isLoadingLocation = false;
+      });
+      return;
+    }
+
+    // 2. Cek dan Minta Izin Lokasi
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        setState(() {
+          _currentCity = 'Izin lokasi ditolak.';
+          _isLoadingLocation = false;
+        });
+        return;
+      }
+    }
+
+    // 3. Ambil Posisi Saat Ini
+    try {
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low, timeLimit: const Duration(seconds: 10));
+
+      // 4. Reverse Geocoding (Mendapatkan Nama Kota)
+      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+      String city = placemarks.first.locality ?? 'Kota Tidak Dikenal';
+
+      setState(() {
+        _currentCity = city;
+        _isLoadingLocation = false;
+        // Di sini Anda dapat menambahkan logika untuk memuat bioskop berdasarkan 'city'
+      });
+    } catch (e) {
+      setState(() {
+        _currentCity = 'Gagal memuat lokasi: Coba Lagi';
+        _isLoadingLocation = false;
+      });
+      // Berikan opsi kepada pengguna untuk mencoba lagi
+    }
+  }
+
+  // Widget untuk setiap item bioskop
+  Widget _buildCinemaTile(String name) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+      color: Colors.white.withOpacity(0.1),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ListTile(
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+        trailing: const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
+        onTap: () {
+          // Navigasi ke detail film/jadwal bioskop ini
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1A237E), 
+        title: const Text('THEATER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        // Sesuai desain, Anda mungkin ingin menempatkan "User Profile (Keranjang)" di sini
+        bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(20.0),
+            child: Container(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.only(left: 15, bottom: 5),
+              child: const Text('User Profile (Keranjang)', style: TextStyle(fontSize: 12, color: Colors.white70)),
+            ),
+          ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          children: <Widget>[
+            // Bar Lokasi
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: InkWell(
+                onTap: _isLoadingLocation ? null : _determinePosition, // Coba ulang jika gagal
+                child: Row(
+                  children: [
+                    const Icon(Icons.location_on, color: Colors.redAccent),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _isLoadingLocation 
+                          ? const Text('Sedang Mendeteksi Lokasi...', style: TextStyle(fontStyle: FontStyle.italic))
+                          : Text(_currentCity, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 10),
+            
+            // Daftar Bioskop
+            Expanded(
+              child: ListView.builder(
+                itemCount: _cinemaList.length,
+                itemBuilder: (context, index) {
+                  return _buildCinemaTile(_cinemaList[index]);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
